@@ -752,22 +752,25 @@ def ultra_long_ccc(api_url: str, api_key: str) -> None:
             time.sleep(1)
             continue
 
-        time.sleep(0.5)
+        time.sleep(0.01)
 
     print("[ULTRA-LONG CCC] BALANCED strategy complete!")
 
 
 def ultra_short_aaa(api_url: str, api_key: str) -> None:
     """
-    Build maximum short position in AAA using ETF arbitrage mechanism.
+    Build BALANCED short AAA position: -5000 AAA, +5000 BBB, +5000 CCC (market neutral).
 
-    Strategy:
-    1. Sell as much AAA directly (down to position limit -500)
-    2. Loop: Sell ETF + Buy BBB + Buy CCC, then create ETF → net effect: -AAA
-    3. Repeat until all position limits reached
+    Strategy (executes all simultaneously for balanced positions):
+    1. Sell AAA directly
+    2. Buy BBB directly
+    3. Buy CCC directly
+
+    Target: -5000 AAA, +5000 BBB, +5000 CCC, 0 ETF
     """
     POSITION_LIMIT = 5000
-    print("[ULTRA-SHORT AAA] Starting ultra-short AAA strategy...")
+    print("[ULTRA-SHORT AAA] Starting BALANCED ultra-short AAA strategy...")
+    print("[ULTRA-SHORT AAA] Target: -5000 AAA, +5000 BBB, +5000 CCC")
 
     while True:
         # Get current positions
@@ -775,339 +778,291 @@ def ultra_short_aaa(api_url: str, api_key: str) -> None:
         aaa_pos = positions.get("AAA", 0)
         bbb_pos = positions.get("BBB", 0)
         ccc_pos = positions.get("CCC", 0)
-        etf_pos = positions.get("ETF", 0)
 
-        print(f"[ULTRA-SHORT AAA] Positions: AAA={aaa_pos}, BBB={bbb_pos}, CCC={ccc_pos}, ETF={etf_pos}")
+        print(f"[ULTRA-SHORT AAA] Current: AAA={aaa_pos}, BBB={bbb_pos}, CCC={ccc_pos}")
 
-        # Check if AAA is at negative limit
-        if aaa_pos <= -POSITION_LIMIT:
-            print(f"[ULTRA-SHORT AAA] AAA position limit reached ({aaa_pos}). Strategy complete.")
-            break
+        # Calculate room for each position
+        aaa_room = aaa_pos - (-POSITION_LIMIT)  # Room to sell AAA
+        bbb_room = POSITION_LIMIT - bbb_pos  # Room to buy BBB
+        ccc_room = POSITION_LIMIT - ccc_pos  # Room to buy CCC
 
-        # Step 1: Sell AAA directly
-        aaa_sell_room = aaa_pos - (-POSITION_LIMIT)  # How much we can sell before hitting -500
-        if aaa_sell_room > 0:
-            aaa_book = get_order_book(api_url, api_key, "AAA")
-            aaa_bid, aaa_bid_qty, aaa_ask, aaa_ask_qty = get_best_bid_ask(aaa_book)
-
-            if aaa_bid and aaa_bid_qty:
-                sell_qty = min(aaa_sell_room, aaa_bid_qty)
-                order = {"symbol": "AAA", "side": "sell", "order_type": "limit", "quantity": sell_qty, "price": aaa_bid}
-                try:
-                    api_post(api_url, "/api/v1/orders", api_key, order)
-                    print(f"[ULTRA-SHORT AAA] Sold {sell_qty} AAA @ {aaa_bid}")
-                    time.sleep(0.1)
-                except Exception as e:
-                    print(f"[ULTRA-SHORT AAA ERR] Failed to sell AAA: {e}")
-
-        # Refresh positions
-        positions = get_positions(api_url, api_key)
-        aaa_pos = positions.get("AAA", 0)
-        bbb_pos = positions.get("BBB", 0)
-        ccc_pos = positions.get("CCC", 0)
-        etf_pos = positions.get("ETF", 0)
-
-        # Step 2: Use ETF mechanism to gain more short AAA
-        # We need to: Sell ETF, Buy BBB, Buy CCC, then Create ETF from BBB+CCC
-        # Net effect: -AAA (because we're short ETF which contains AAA)
-
-        # Calculate how much room we have in each position
-        etf_sell_room = etf_pos - (-POSITION_LIMIT)  # Room to sell ETF
-        bbb_buy_room = POSITION_LIMIT - bbb_pos  # Room to buy BBB
-        ccc_buy_room = POSITION_LIMIT - ccc_pos  # Room to buy CCC
-        aaa_short_room = aaa_pos - (-POSITION_LIMIT)  # Room to short more AAA
-
-        if etf_sell_room <= 0 or bbb_buy_room <= 0 or ccc_buy_room <= 0 or aaa_short_room <= 0:
-            print(f"[ULTRA-SHORT AAA] Position limits reached. ETF sell room={etf_sell_room}, BBB buy room={bbb_buy_room}, CCC buy room={ccc_buy_room}, AAA short room={aaa_short_room}")
+        # Check if all positions are at target
+        if aaa_room <= 0 and bbb_room <= 0 and ccc_room <= 0:
+            print(f"[ULTRA-SHORT AAA] All positions at target! AAA={aaa_pos}, BBB={bbb_pos}, CCC={ccc_pos}")
             break
 
         # Get order books
-        etf_book = get_order_book(api_url, api_key, "ETF")
+        aaa_book = get_order_book(api_url, api_key, "AAA")
         bbb_book = get_order_book(api_url, api_key, "BBB")
         ccc_book = get_order_book(api_url, api_key, "CCC")
 
-        etf_bid, etf_bid_qty, etf_ask, etf_ask_qty = get_best_bid_ask(etf_book)
+        aaa_bid, aaa_bid_qty, aaa_ask, aaa_ask_qty = get_best_bid_ask(aaa_book)
         bbb_bid, bbb_bid_qty, bbb_ask, bbb_ask_qty = get_best_bid_ask(bbb_book)
         ccc_bid, ccc_bid_qty, ccc_ask, ccc_ask_qty = get_best_bid_ask(ccc_book)
 
-        # Check if we have valid market data
-        if not all([etf_bid, etf_bid_qty, bbb_ask, bbb_ask_qty, ccc_ask, ccc_ask_qty]):
+        # Check market data availability
+        if not all([aaa_bid, aaa_bid_qty, bbb_ask, bbb_ask_qty, ccc_ask, ccc_ask_qty]):
             print("[ULTRA-SHORT AAA] Insufficient market liquidity, waiting...")
             time.sleep(1)
             continue
 
-        # Calculate trade quantity: min of all constraints
-        trade_qty = min(etf_bid_qty, bbb_ask_qty, ccc_ask_qty, etf_sell_room, bbb_buy_room, ccc_buy_room, aaa_short_room)
+        # Calculate BALANCED trade quantity (same quantity for all three)
+        trade_qty = min(
+            aaa_bid_qty if aaa_room > 0 else 999999,
+            bbb_ask_qty if bbb_room > 0 else 999999,
+            ccc_ask_qty if ccc_room > 0 else 999999,
+            aaa_room if aaa_room > 0 else 0,
+            bbb_room if bbb_room > 0 else 0,
+            ccc_room if ccc_room > 0 else 0
+        )
 
         if trade_qty <= 0:
             print("[ULTRA-SHORT AAA] No tradeable quantity available")
             break
 
-        print(f"[ULTRA-SHORT AAA] Executing ETF mechanism: trade_qty={trade_qty}")
+        print(f"[ULTRA-SHORT AAA] Executing BALANCED trade: {trade_qty} units")
 
-        # Execute: Sell ETF, Buy BBB, Buy CCC
-        orders = [
-            {"symbol": "ETF", "side": "sell", "order_type": "limit", "quantity": trade_qty, "price": etf_bid},
-            {"symbol": "BBB", "side": "buy", "order_type": "limit", "quantity": trade_qty, "price": bbb_ask},
-            {"symbol": "CCC", "side": "buy", "order_type": "limit", "quantity": trade_qty, "price": ccc_ask},
-        ]
+        # Execute all three orders SIMULTANEOUSLY for balanced positions
+        orders = []
+        if aaa_room > 0:
+            orders.append({"symbol": "AAA", "side": "sell", "order_type": "limit", "quantity": trade_qty, "price": aaa_bid})
+        if bbb_room > 0:
+            orders.append({"symbol": "BBB", "side": "buy", "order_type": "limit", "quantity": trade_qty, "price": bbb_ask})
+        if ccc_room > 0:
+            orders.append({"symbol": "CCC", "side": "buy", "order_type": "limit", "quantity": trade_qty, "price": ccc_ask})
 
-        success = True
-        for order in orders:
+        # Place all orders concurrently
+        def place_single_order(order):
             try:
                 api_post(api_url, "/api/v1/orders", api_key, order)
-                print(f"[ULTRA-SHORT AAA] {order['side'].upper()} {order['quantity']} {order['symbol']} @ {order['price']}")
+                return (True, order)
             except Exception as e:
                 print(f"[ULTRA-SHORT AAA ERR] Failed {order['side']} {order['symbol']}: {e}")
-                success = False
+                return (False, order)
 
-        if success:
-            # Wait for fills
-            time.sleep(0.2)
-            # Create ETF from BBB+CCC we just bought
-            # This consumes BBB+CCC and creates AAA (which nets against our short AAA from ETF sale)
-            create_etf(api_url, api_key, trade_qty)
-            print(f"[ULTRA-SHORT AAA] Net effect: -{trade_qty} AAA (BBB/CCC/ETF positions cancelled out)")
+        success = True
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = [executor.submit(place_single_order, order) for order in orders]
+            for future in as_completed(futures):
+                result, order = future.result()
+                if result:
+                    print(f"[ULTRA-SHORT AAA] {order['side'].upper()} {order['quantity']} {order['symbol']} @ {order['price']}")
+                else:
+                    success = False
+
+        if not success:
+            print("[ULTRA-SHORT AAA] Some orders failed, retrying...")
+            time.sleep(1)
+            continue
 
         time.sleep(0.5)
 
-    print("[ULTRA-SHORT AAA] Strategy complete!")
-
+    print("[ULTRA-SHORT AAA] BALANCED strategy complete!")
 
 def ultra_short_bbb(api_url: str, api_key: str) -> None:
     """
-    Build maximum short position in BBB using ETF arbitrage mechanism.
+    Build BALANCED short BBB position: -5000 BBB, +5000 AAA, +5000 CCC (market neutral).
 
-    Strategy:
-    1. Sell as much BBB directly (down to position limit -500)
-    2. Loop: Sell ETF + Buy AAA + Buy CCC, then create ETF → net effect: -BBB
-    3. Repeat until all position limits reached
+    Strategy (executes all simultaneously for balanced positions):
+    1. Sell BBB directly
+    2. Buy AAA directly
+    3. Buy CCC directly
+
+    Target: -5000 BBB, +5000 AAA, +5000 CCC, 0 ETF
     """
     POSITION_LIMIT = 5000
-    print("[ULTRA-SHORT BBB] Starting ultra-short BBB strategy...")
+    print("[ULTRA-SHORT BBB] Starting BALANCED ultra-short BBB strategy...")
+    print("[ULTRA-SHORT BBB] Target: -5000 BBB, +5000 AAA, +5000 CCC")
 
     while True:
         # Get current positions
         positions = get_positions(api_url, api_key)
-        aaa_pos = positions.get("AAA", 0)
         bbb_pos = positions.get("BBB", 0)
-        ccc_pos = positions.get("CCC", 0)
-        etf_pos = positions.get("ETF", 0)
-
-        print(f"[ULTRA-SHORT BBB] Positions: AAA={aaa_pos}, BBB={bbb_pos}, CCC={ccc_pos}, ETF={etf_pos}")
-
-        # Check if BBB is at negative limit
-        if bbb_pos <= -POSITION_LIMIT:
-            print(f"[ULTRA-SHORT BBB] BBB position limit reached ({bbb_pos}). Strategy complete.")
-            break
-
-        # Step 1: Sell BBB directly
-        bbb_sell_room = bbb_pos - (-POSITION_LIMIT)
-        if bbb_sell_room > 0:
-            bbb_book = get_order_book(api_url, api_key, "BBB")
-            bbb_bid, bbb_bid_qty, bbb_ask, bbb_ask_qty = get_best_bid_ask(bbb_book)
-
-            if bbb_bid and bbb_bid_qty:
-                sell_qty = min(bbb_sell_room, bbb_bid_qty)
-                order = {"symbol": "BBB", "side": "sell", "order_type": "limit", "quantity": sell_qty, "price": bbb_bid}
-                try:
-                    api_post(api_url, "/api/v1/orders", api_key, order)
-                    print(f"[ULTRA-SHORT BBB] Sold {sell_qty} BBB @ {bbb_bid}")
-                    time.sleep(0.1)
-                except Exception as e:
-                    print(f"[ULTRA-SHORT BBB ERR] Failed to sell BBB: {e}")
-
-        # Refresh positions
-        positions = get_positions(api_url, api_key)
         aaa_pos = positions.get("AAA", 0)
-        bbb_pos = positions.get("BBB", 0)
         ccc_pos = positions.get("CCC", 0)
-        etf_pos = positions.get("ETF", 0)
 
-        # Step 2: Use ETF mechanism
-        etf_sell_room = etf_pos - (-POSITION_LIMIT)
-        aaa_buy_room = POSITION_LIMIT - aaa_pos
-        ccc_buy_room = POSITION_LIMIT - ccc_pos
-        bbb_short_room = bbb_pos - (-POSITION_LIMIT)
+        print(f"[ULTRA-SHORT BBB] Current: BBB={bbb_pos}, AAA={aaa_pos}, CCC={ccc_pos}")
 
-        if etf_sell_room <= 0 or aaa_buy_room <= 0 or ccc_buy_room <= 0 or bbb_short_room <= 0:
-            print(f"[ULTRA-SHORT BBB] Position limits reached. ETF sell room={etf_sell_room}, AAA buy room={aaa_buy_room}, CCC buy room={ccc_buy_room}, BBB short room={bbb_short_room}")
+        # Calculate room for each position
+        bbb_room = bbb_pos - (-POSITION_LIMIT)  # Room to sell BBB
+        aaa_room = POSITION_LIMIT - aaa_pos  # Room to buy AAA
+        ccc_room = POSITION_LIMIT - ccc_pos  # Room to buy CCC
+
+        # Check if all positions are at target
+        if bbb_room <= 0 and aaa_room <= 0 and ccc_room <= 0:
+            print(f"[ULTRA-SHORT BBB] All positions at target! BBB={bbb_pos}, AAA={aaa_pos}, CCC={ccc_pos}")
             break
 
         # Get order books
-        etf_book = get_order_book(api_url, api_key, "ETF")
+        bbb_book = get_order_book(api_url, api_key, "BBB")
         aaa_book = get_order_book(api_url, api_key, "AAA")
         ccc_book = get_order_book(api_url, api_key, "CCC")
 
-        etf_bid, etf_bid_qty, etf_ask, etf_ask_qty = get_best_bid_ask(etf_book)
+        bbb_bid, bbb_bid_qty, bbb_ask, bbb_ask_qty = get_best_bid_ask(bbb_book)
         aaa_bid, aaa_bid_qty, aaa_ask, aaa_ask_qty = get_best_bid_ask(aaa_book)
         ccc_bid, ccc_bid_qty, ccc_ask, ccc_ask_qty = get_best_bid_ask(ccc_book)
 
-        if not all([etf_bid, etf_bid_qty, aaa_ask, aaa_ask_qty, ccc_ask, ccc_ask_qty]):
+        # Check market data availability
+        if not all([bbb_bid, bbb_bid_qty, aaa_ask, aaa_ask_qty, ccc_ask, ccc_ask_qty]):
             print("[ULTRA-SHORT BBB] Insufficient market liquidity, waiting...")
             time.sleep(1)
             continue
 
-        trade_qty = min(etf_bid_qty, aaa_ask_qty, ccc_ask_qty, etf_sell_room, aaa_buy_room, ccc_buy_room, bbb_short_room)
+        # Calculate BALANCED trade quantity (same quantity for all three)
+        trade_qty = min(
+            bbb_bid_qty if bbb_room > 0 else 999999,
+            aaa_ask_qty if aaa_room > 0 else 999999,
+            ccc_ask_qty if ccc_room > 0 else 999999,
+            bbb_room if bbb_room > 0 else 0,
+            aaa_room if aaa_room > 0 else 0,
+            ccc_room if ccc_room > 0 else 0
+        )
 
         if trade_qty <= 0:
             print("[ULTRA-SHORT BBB] No tradeable quantity available")
             break
 
-        print(f"[ULTRA-SHORT BBB] Executing ETF mechanism: trade_qty={trade_qty}")
+        print(f"[ULTRA-SHORT BBB] Executing BALANCED trade: {trade_qty} units")
 
-        # Execute: Sell ETF, Buy AAA, Buy CCC
-        orders = [
-            {"symbol": "ETF", "side": "sell", "order_type": "limit", "quantity": trade_qty, "price": etf_bid},
-            {"symbol": "AAA", "side": "buy", "order_type": "limit", "quantity": trade_qty, "price": aaa_ask},
-            {"symbol": "CCC", "side": "buy", "order_type": "limit", "quantity": trade_qty, "price": ccc_ask},
-        ]
+        # Execute all three orders SIMULTANEOUSLY for balanced positions
+        orders = []
+        if bbb_room > 0:
+            orders.append({"symbol": "BBB", "side": "sell", "order_type": "limit", "quantity": trade_qty, "price": bbb_bid})
+        if aaa_room > 0:
+            orders.append({"symbol": "AAA", "side": "buy", "order_type": "limit", "quantity": trade_qty, "price": aaa_ask})
+        if ccc_room > 0:
+            orders.append({"symbol": "CCC", "side": "buy", "order_type": "limit", "quantity": trade_qty, "price": ccc_ask})
 
-        success = True
-        for order in orders:
+        # Place all orders concurrently
+        def place_single_order(order):
             try:
                 api_post(api_url, "/api/v1/orders", api_key, order)
-                print(f"[ULTRA-SHORT BBB] {order['side'].upper()} {order['quantity']} {order['symbol']} @ {order['price']}")
+                return (True, order)
             except Exception as e:
                 print(f"[ULTRA-SHORT BBB ERR] Failed {order['side']} {order['symbol']}: {e}")
-                success = False
+                return (False, order)
 
-        if success:
-            time.sleep(0.2)
-            create_etf(api_url, api_key, trade_qty)
-            print(f"[ULTRA-SHORT BBB] Net effect: -{trade_qty} BBB (AAA/CCC/ETF positions cancelled out)")
+        success = True
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = [executor.submit(place_single_order, order) for order in orders]
+            for future in as_completed(futures):
+                result, order = future.result()
+                if result:
+                    print(f"[ULTRA-SHORT BBB] {order['side'].upper()} {order['quantity']} {order['symbol']} @ {order['price']}")
+                else:
+                    success = False
+
+        if not success:
+            print("[ULTRA-SHORT BBB] Some orders failed, retrying...")
+            time.sleep(1)
+            continue
 
         time.sleep(0.5)
 
-    print("[ULTRA-SHORT BBB] Strategy complete!")
-
+    print("[ULTRA-SHORT BBB] BALANCED strategy complete!")
 
 def ultra_short_ccc(api_url: str, api_key: str) -> None:
     """
-    Build maximum short position in CCC using ETF arbitrage mechanism.
+    Build BALANCED short CCC position: -5000 CCC, +5000 AAA, +5000 BBB (market neutral).
 
-    Strategy:
-    1. Sell as much CCC directly (down to position limit -500)
-    2. Loop: Sell ETF + Buy AAA + Buy BBB, then create ETF → net effect: -CCC
-    3. Repeat until all position limits reached
+    Strategy (executes all simultaneously for balanced positions):
+    1. Sell CCC directly
+    2. Buy AAA directly
+    3. Buy BBB directly
+
+    Target: -5000 CCC, +5000 AAA, +5000 BBB, 0 ETF
     """
     POSITION_LIMIT = 5000
-    print("[ULTRA-SHORT CCC] Starting ultra-short CCC strategy...")
+    print("[ULTRA-SHORT CCC] Starting BALANCED ultra-short CCC strategy...")
+    print("[ULTRA-SHORT CCC] Target: -5000 CCC, +5000 AAA, +5000 BBB")
 
     while True:
         # Get current positions
         positions = get_positions(api_url, api_key)
+        ccc_pos = positions.get("CCC", 0)
         aaa_pos = positions.get("AAA", 0)
         bbb_pos = positions.get("BBB", 0)
-        ccc_pos = positions.get("CCC", 0)
-        etf_pos = positions.get("ETF", 0)
 
-        print(f"[ULTRA-SHORT CCC] Positions: AAA={aaa_pos}, BBB={bbb_pos}, CCC={ccc_pos}, ETF={etf_pos}")
+        print(f"[ULTRA-SHORT CCC] Current: CCC={ccc_pos}, AAA={aaa_pos}, BBB={bbb_pos}")
 
-        # Check if CCC is at negative limit
-        if ccc_pos <= -POSITION_LIMIT:
-            print(f"[ULTRA-SHORT CCC] CCC position limit reached ({ccc_pos}). Strategy complete.")
-            break
+        # Calculate room for each position
+        ccc_room = ccc_pos - (-POSITION_LIMIT)  # Room to sell CCC
+        aaa_room = POSITION_LIMIT - aaa_pos  # Room to buy AAA
+        bbb_room = POSITION_LIMIT - bbb_pos  # Room to buy BBB
 
-        # Step 1: Sell CCC directly
-        ccc_sell_room = ccc_pos - (-POSITION_LIMIT)
-        if ccc_sell_room > 0:
-            ccc_book = get_order_book(api_url, api_key, "CCC")
-            ccc_bid, ccc_bid_qty, ccc_ask, ccc_ask_qty = get_best_bid_ask(ccc_book)
-
-            if ccc_bid and ccc_bid_qty:
-                sell_qty = min(ccc_sell_room, ccc_bid_qty)
-                order = {"symbol": "CCC", "side": "sell", "order_type": "limit", "quantity": sell_qty, "price": ccc_bid}
-                try:
-                    api_post(api_url, "/api/v1/orders", api_key, order)
-                    print(f"[ULTRA-SHORT CCC] Sold {sell_qty} CCC @ {ccc_bid}")
-                    time.sleep(0.1)
-                except Exception as e:
-                    print(f"[ULTRA-SHORT CCC ERR] Failed to sell CCC: {e}")
-
-        # Refresh positions
-        positions = get_positions(api_url, api_key)
-        aaa_pos = positions.get("AAA", 0)
-        bbb_pos = positions.get("BBB", 0)
-        ccc_pos = positions.get("CCC", 0)
-        etf_pos = positions.get("ETF", 0)
-
-        # Step 2: Use ETF mechanism
-        etf_sell_room = etf_pos - (-POSITION_LIMIT)
-        aaa_buy_room = POSITION_LIMIT - aaa_pos
-        bbb_buy_room = POSITION_LIMIT - bbb_pos
-        ccc_short_room = ccc_pos - (-POSITION_LIMIT)
-
-        if etf_sell_room <= 0 or aaa_buy_room <= 0 or bbb_buy_room <= 0 or ccc_short_room <= 0:
-            print(f"[ULTRA-SHORT CCC] Position limits reached. ETF sell room={etf_sell_room}, AAA buy room={aaa_buy_room}, BBB buy room={bbb_buy_room}, CCC short room={ccc_short_room}")
+        # Check if all positions are at target
+        if ccc_room <= 0 and aaa_room <= 0 and bbb_room <= 0:
+            print(f"[ULTRA-SHORT CCC] All positions at target! CCC={ccc_pos}, AAA={aaa_pos}, BBB={bbb_pos}")
             break
 
         # Get order books
-        etf_book = get_order_book(api_url, api_key, "ETF")
+        ccc_book = get_order_book(api_url, api_key, "CCC")
         aaa_book = get_order_book(api_url, api_key, "AAA")
         bbb_book = get_order_book(api_url, api_key, "BBB")
 
-        etf_bid, etf_bid_qty, etf_ask, etf_ask_qty = get_best_bid_ask(etf_book)
+        ccc_bid, ccc_bid_qty, ccc_ask, ccc_ask_qty = get_best_bid_ask(ccc_book)
         aaa_bid, aaa_bid_qty, aaa_ask, aaa_ask_qty = get_best_bid_ask(aaa_book)
         bbb_bid, bbb_bid_qty, bbb_ask, bbb_ask_qty = get_best_bid_ask(bbb_book)
 
-        if not all([etf_bid, etf_bid_qty, aaa_ask, aaa_ask_qty, bbb_ask, bbb_ask_qty]):
+        # Check market data availability
+        if not all([ccc_bid, ccc_bid_qty, aaa_ask, aaa_ask_qty, bbb_ask, bbb_ask_qty]):
             print("[ULTRA-SHORT CCC] Insufficient market liquidity, waiting...")
             time.sleep(1)
             continue
 
-        trade_qty = min(etf_bid_qty, aaa_ask_qty, bbb_ask_qty, etf_sell_room, aaa_buy_room, bbb_buy_room, ccc_short_room)
+        # Calculate BALANCED trade quantity (same quantity for all three)
+        trade_qty = min(
+            ccc_bid_qty if ccc_room > 0 else 999999,
+            aaa_ask_qty if aaa_room > 0 else 999999,
+            bbb_ask_qty if bbb_room > 0 else 999999,
+            ccc_room if ccc_room > 0 else 0,
+            aaa_room if aaa_room > 0 else 0,
+            bbb_room if bbb_room > 0 else 0
+        )
 
         if trade_qty <= 0:
             print("[ULTRA-SHORT CCC] No tradeable quantity available")
             break
 
-        print(f"[ULTRA-SHORT CCC] Executing ETF mechanism: trade_qty={trade_qty}")
+        print(f"[ULTRA-SHORT CCC] Executing BALANCED trade: {trade_qty} units")
 
-        # Execute: Sell ETF, Buy AAA, Buy BBB
-        orders = [
-            {"symbol": "ETF", "side": "sell", "order_type": "limit", "quantity": trade_qty, "price": etf_bid},
-            {"symbol": "AAA", "side": "buy", "order_type": "limit", "quantity": trade_qty, "price": aaa_ask},
-            {"symbol": "BBB", "side": "buy", "order_type": "limit", "quantity": trade_qty, "price": bbb_ask},
-        ]
+        # Execute all three orders SIMULTANEOUSLY for balanced positions
+        orders = []
+        if ccc_room > 0:
+            orders.append({"symbol": "CCC", "side": "sell", "order_type": "limit", "quantity": trade_qty, "price": ccc_bid})
+        if aaa_room > 0:
+            orders.append({"symbol": "AAA", "side": "buy", "order_type": "limit", "quantity": trade_qty, "price": aaa_ask})
+        if bbb_room > 0:
+            orders.append({"symbol": "BBB", "side": "buy", "order_type": "limit", "quantity": trade_qty, "price": bbb_ask})
 
-        success = True
-        for order in orders:
+        # Place all orders concurrently
+        def place_single_order(order):
             try:
                 api_post(api_url, "/api/v1/orders", api_key, order)
-                print(f"[ULTRA-SHORT CCC] {order['side'].upper()} {order['quantity']} {order['symbol']} @ {order['price']}")
+                return (True, order)
             except Exception as e:
                 print(f"[ULTRA-SHORT CCC ERR] Failed {order['side']} {order['symbol']}: {e}")
-                success = False
+                return (False, order)
 
-        if success:
-            time.sleep(0.2)
-            create_etf(api_url, api_key, trade_qty)
-            print(f"[ULTRA-SHORT CCC] Net effect: -{trade_qty} CCC (AAA/BBB/ETF positions cancelled out)")
+        success = True
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = [executor.submit(place_single_order, order) for order in orders]
+            for future in as_completed(futures):
+                result, order = future.result()
+                if result:
+                    print(f"[ULTRA-SHORT CCC] {order['side'].upper()} {order['quantity']} {order['symbol']} @ {order['price']}")
+                else:
+                    success = False
+
+        if not success:
+            print("[ULTRA-SHORT CCC] Some orders failed, retrying...")
+            time.sleep(1)
+            continue
 
         time.sleep(0.5)
 
-    print("[ULTRA-SHORT CCC] Strategy complete!")
+    print("[ULTRA-SHORT CCC] BALANCED strategy complete!")
 
-
-# ----------------------------
-# Exit Ultra-Long Strategies
-# ----------------------------
-def exit_ultra_long_aaa(api_url: str, api_key: str) -> None:
-    """
-    Exit ultra-long AAA position by selling all AAA holdings.
-
-    Strategy:
-    1. Sell all existing AAA position directly
-    2. If we have BBB/CCC from the ultra-long process:
-       - Create ETF from BBB+CCC (this produces more AAA)
-       - Sell the resulting AAA
-    3. Repeat until all positions are liquidated
-    """
-    print("[EXIT ULTRA-LONG AAA] Starting exit strategy...")
-
-    while True:
-        # Get current positions
         positions = get_positions(api_url, api_key)
         aaa_pos = positions.get("AAA", 0)
         bbb_pos = positions.get("BBB", 0)
