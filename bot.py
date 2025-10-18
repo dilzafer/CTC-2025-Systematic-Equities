@@ -256,7 +256,7 @@ def check_position_limits(
     Returns:
         Maximum allowed trade quantity respecting [-5000, +5000] limits for all 4 assets
     """
-    POSITION_LIMIT = 50000
+    POSITION_LIMIT = 5000
 
     # Get current positions, default to 0 if not found
     etf_pos = positions.get("ETF", 0)
@@ -457,7 +457,7 @@ def ultra_long_aaa(api_url: str, api_key: str) -> None:
     2. Loop: Buy ETF + Sell BBB + Sell CCC, then redeem ETF → net effect: +AAA
     3. Repeat until all position limits reached
     """
-    POSITION_LIMIT = 50000
+    POSITION_LIMIT = 5000
     print("[ULTRA-LONG AAA] Starting ultra-long AAA strategy...")
 
     while True:
@@ -552,9 +552,17 @@ def ultra_long_aaa(api_url: str, api_key: str) -> None:
         if success:
             # Wait for fills
             time.sleep(0.2)
-            # Redeem ETF to get AAA+BBB+CCC
+
+            # Redeem ETF to get AAA+BBB+CCC components
+            # Current state: +trade_qty ETF, -trade_qty BBB, -trade_qty CCC
+            # After redemption: -trade_qty ETF, +trade_qty AAA, +trade_qty BBB, +trade_qty CCC
+            # Net effect from this iteration:
+            #   AAA: 0 + trade_qty = +trade_qty ✅
+            #   BBB: -trade_qty + trade_qty = 0 (neutral)
+            #   CCC: -trade_qty + trade_qty = 0 (neutral)
+            #   ETF: +trade_qty - trade_qty = 0 (neutral)
             redeem_etf(api_url, api_key, trade_qty)
-            print(f"[ULTRA-LONG AAA] Net effect: +{trade_qty} AAA (BBB/CCC/ETF positions cancelled out)")
+            print(f"[ULTRA-LONG AAA] Redeemed {trade_qty} ETF → Net: +{trade_qty} AAA, BBB/CCC/ETF back to neutral")
 
         time.sleep(0.5)
 
