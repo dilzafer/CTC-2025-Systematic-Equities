@@ -1,0 +1,101 @@
+.strategy-button-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.strategy-button {
+  padding: 0.75rem 1.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 180px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.strategy-button:hover:not(.disabled):not(.loading) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.strategy-button:active:not(.disabled):not(.loading) {
+  transform: translateY(0);
+}
+
+.strategy-button.loading {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.strategy-button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Variant Colors */
+.strategy-button-long {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+}
+
+.strategy-button-long:hover:not(.disabled):not(.loading) {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+}
+
+.strategy-button-short {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+}
+
+.strategy-button-short:hover:not(.disabled):not(.loading) {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+}
+
+.strategy-button-exit {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+}
+
+.strategy-button-exit:hover:not(.disabled):not(.loading) {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+}
+
+.strategy-button-arbitrage {
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  color: white;
+}
+
+.strategy-button-arbitrage:hover:not(.disabled):not(.loading) {
+  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+}
+
+.strategy-button-default {
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+  color: white;
+}
+
+.strategy-button-default:hover:not(.disabled):not(.loading) {
+  background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+}
+
+/* Messages */
+.strategy-message {
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+}
+
+.strategy-message.success {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.strategy-message.error {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
