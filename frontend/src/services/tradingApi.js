@@ -60,7 +60,7 @@ export const redeemETF = async (quantity) => {
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-const POSITION_LIMIT = 500;
+const POSITION_LIMIT = 5000;
 const COMPONENTS = ['AAA', 'BBB', 'CCC'];
 
 // Check if positions would violate limits

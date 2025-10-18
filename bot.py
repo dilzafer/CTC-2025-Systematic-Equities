@@ -254,9 +254,9 @@ def check_position_limits(
         trade_type: Either "spread1" (sell ETF, buy components) or "spread2" (buy ETF, sell components)
 
     Returns:
-        Maximum allowed trade quantity respecting [-500, +500] limits for all 4 assets
+        Maximum allowed trade quantity respecting [-5000, +5000] limits for all 4 assets
     """
-    POSITION_LIMIT = 500
+    POSITION_LIMIT = 50000
 
     # Get current positions, default to 0 if not found
     etf_pos = positions.get("ETF", 0)
@@ -453,11 +453,11 @@ def ultra_long_aaa(api_url: str, api_key: str) -> None:
     Build maximum long position in AAA using ETF arbitrage mechanism.
 
     Strategy:
-    1. Buy as much AAA directly (up to position limit 500)
+    1. Buy as much AAA directly (up to position limit 5000)
     2. Loop: Buy ETF + Sell BBB + Sell CCC, then redeem ETF → net effect: +AAA
     3. Repeat until all position limits reached
     """
-    POSITION_LIMIT = 500
+    POSITION_LIMIT = 50000
     print("[ULTRA-LONG AAA] Starting ultra-long AAA strategy...")
 
     while True:
@@ -570,7 +570,7 @@ def ultra_long_bbb(api_url: str, api_key: str) -> None:
     2. Loop: Buy ETF + Sell AAA + Sell CCC, then redeem ETF → net effect: +BBB
     3. Repeat until all position limits reached
     """
-    POSITION_LIMIT = 500
+    POSITION_LIMIT = 5000
     print("[ULTRA-LONG BBB] Starting ultra-long BBB strategy...")
 
     while True:
@@ -678,7 +678,7 @@ def ultra_long_ccc(api_url: str, api_key: str) -> None:
     2. Loop: Buy ETF + Sell AAA + Sell BBB, then redeem ETF → net effect: +CCC
     3. Repeat until all position limits reached
     """
-    POSITION_LIMIT = 500
+    POSITION_LIMIT = 5000
     print("[ULTRA-LONG CCC] Starting ultra-long CCC strategy...")
 
     while True:
@@ -789,7 +789,7 @@ def ultra_short_aaa(api_url: str, api_key: str) -> None:
     2. Loop: Sell ETF + Buy BBB + Buy CCC, then create ETF → net effect: -AAA
     3. Repeat until all position limits reached
     """
-    POSITION_LIMIT = 500
+    POSITION_LIMIT = 5000
     print("[ULTRA-SHORT AAA] Starting ultra-short AAA strategy...")
 
     while True:
@@ -906,7 +906,7 @@ def ultra_short_bbb(api_url: str, api_key: str) -> None:
     2. Loop: Sell ETF + Buy AAA + Buy CCC, then create ETF → net effect: -BBB
     3. Repeat until all position limits reached
     """
-    POSITION_LIMIT = 500
+    POSITION_LIMIT = 5000
     print("[ULTRA-SHORT BBB] Starting ultra-short BBB strategy...")
 
     while True:
@@ -1014,7 +1014,7 @@ def ultra_short_ccc(api_url: str, api_key: str) -> None:
     2. Loop: Sell ETF + Buy AAA + Buy BBB, then create ETF → net effect: -CCC
     3. Repeat until all position limits reached
     """
-    POSITION_LIMIT = 500
+    POSITION_LIMIT = 5000
     print("[ULTRA-SHORT CCC] Starting ultra-short CCC strategy...")
 
     while True:

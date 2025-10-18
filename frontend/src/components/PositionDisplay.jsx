@@ -7,7 +7,7 @@
 
 import './PositionDisplay.css';
 
-const POSITION_LIMIT = 500;
+const POSITION_LIMIT = 5000;
 
 const PositionDisplay = ({ positions }) => {
   const symbols = ['AAA', 'BBB', 'CCC', 'ETF'];
