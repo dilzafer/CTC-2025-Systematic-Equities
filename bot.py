@@ -546,7 +546,7 @@ def ultra_long_aaa(api_url: str, api_key: str) -> None:
             time.sleep(1)
             continue
 
-        time.sleep(0.5)
+        time.sleep(0.01)
 
     print("[ULTRA-LONG AAA] BALANCED strategy complete!")
 
