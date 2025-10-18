@@ -335,6 +335,7 @@ def execute_arbitrage_trade(
         ]
 
     # Execute all orders CONCURRENTLY using ThreadPoolExecutor
+    # CRITICAL: All 4 legs must succeed with EXACT SAME QUANTITY for balanced arbitrage
     def place_single_order(order):
         try:
             api_post(api_url, "/api/v1/orders", api_key, order)
@@ -343,32 +344,49 @@ def execute_arbitrage_trade(
             print(f"[ARB ERR] Failed to place {order['side']} {order['symbol']}: {e}")
             return (False, order)
 
-    success = True
+    # Submit all orders concurrently
+    results = []
     with ThreadPoolExecutor(max_workers=4) as executor:
         futures = [executor.submit(place_single_order, order) for order in orders]
         for future in as_completed(futures):
             result, order = future.result()
-            if not result:
-                success = False
+            results.append((result, order))
 
-    if success:
-        profit = opportunity["spread"] * trade_qty
-        print(f"[ARB] {trade_type.upper()} executed: {trade_qty} units, spread={opportunity['spread']:.4f}, profit={profit:.2f}")
+    # Check if ALL 4 legs succeeded
+    success = all(result for result, _ in results)
+    failed_orders = [order for result, order in results if not result]
 
-        # INSTANT POSITION NETTING - No delay, execute immediately
-        if trade_type == "spread1":
-            # Spread 1: We now have long AAA+BBB+CCC, short ETF
-            # Create ETF from components to net out all positions to 0
-            create_etf(api_url, api_key, trade_qty)
-            print(f"[ARB] Spread 1 netted: Created {trade_qty} ETF from components → all positions = 0")
+    if not success:
+        print(f"[ARB ERR] Arbitrage FAILED - only {len(results) - len(failed_orders)}/4 legs executed!")
+        print(f"[ARB ERR] Failed orders: {[f\"{o['side']} {o['symbol']}\" for o in failed_orders]}")
+        print(f"[ARB ERR] WARNING: Position imbalance may exist. Manual intervention required!")
+        return False
 
-        elif trade_type == "spread2":
-            # Spread 2: We now have long ETF, short AAA+BBB+CCC
-            # Redeem ETF to get components and net out all positions to 0
-            redeem_etf(api_url, api_key, trade_qty)
-            print(f"[ARB] Spread 2 netted: Redeemed {trade_qty} ETF into components → all positions = 0")
+    # All 4 legs succeeded with same quantity
+    # Verify all orders used exactly the same quantity (sanity check)
+    quantities = [order["quantity"] for _, order in results]
+    if len(set(quantities)) != 1:
+        print(f"[ARB ERR] CRITICAL: Orders executed with DIFFERENT quantities: {quantities}")
+        print(f"[ARB ERR] This should never happen! Aborting position netting.")
+        return False
 
-    return success
+    profit = opportunity["spread"] * trade_qty
+    print(f"[ARB] ✅ {trade_type.upper()} executed: ALL 4 LEGS @ {trade_qty} units each, spread={opportunity['spread']:.4f}, profit={profit:.2f}")
+
+    # INSTANT POSITION NETTING - No delay, execute immediately
+    if trade_type == "spread1":
+        # Spread 1: We now have long AAA+BBB+CCC, short ETF
+        # Create ETF from components to net out all positions to 0
+        create_etf(api_url, api_key, trade_qty)
+        print(f"[ARB] Spread 1 netted: Created {trade_qty} ETF from components → all positions = 0")
+
+    elif trade_type == "spread2":
+        # Spread 2: We now have long ETF, short AAA+BBB+CCC
+        # Redeem ETF to get components and net out all positions to 0
+        redeem_etf(api_url, api_key, trade_qty)
+        print(f"[ARB] Spread 2 netted: Redeemed {trade_qty} ETF into components → all positions = 0")
+
+    return True
 
 
 def run_arbitrage_strategy(api_url: str, api_key: str) -> None:
@@ -749,7 +767,7 @@ def ultra_long_ccc(api_url: str, api_key: str) -> None:
 
         if not success:
             print("[ULTRA-LONG CCC] Some orders failed, retrying...")
-            time.sleep(1)
+            time.sleep(0.1)
             continue
 
         time.sleep(0.001)
