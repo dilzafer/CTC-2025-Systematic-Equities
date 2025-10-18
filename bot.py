@@ -752,7 +752,7 @@ def ultra_long_ccc(api_url: str, api_key: str) -> None:
             time.sleep(1)
             continue
 
-        time.sleep(0.01)
+        time.sleep(0.001)
 
     print("[ULTRA-LONG CCC] BALANCED strategy complete!")
 
