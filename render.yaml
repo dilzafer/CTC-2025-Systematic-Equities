@@ -6,8 +6,4 @@ services:
     startCommand: "python api_server.py"
     envVars:
       - key: PORT
-        value: 5001
-      - key: CTC_API_KEY
-        value: wxJM6xGFnLPodG5jLQUejTxRnL4SZog_3GS2_3h244Q
-      - key: CTC_API_URL
-        value: http://localhost:8000
+        value: 10000

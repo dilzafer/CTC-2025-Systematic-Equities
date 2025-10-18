@@ -5,52 +5,55 @@
  * Includes ultra-long, ultra-short, exit, and arbitrage controls.
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import StrategyButton from './StrategyButton';
 import PositionDisplay from './PositionDisplay';
 import StatusIndicator from './StatusIndicator';
-import * as tradingApi from '../services/tradingApi';
+import * as api from '../services/api';
 import './ControlPanel.css';
 
 const ControlPanel = () => {
   const [positions, setPositions] = useState({});
-  const [arbitrageRunning, setArbitrageRunning] = useState(false);
+  const [botStatus, setBotStatus] = useState({
+    running_strategies: [],
+    arbitrage_running: false
+  });
   const [connected, setConnected] = useState(false);
-  const [runningStrategies, setRunningStrategies] = useState([]);
-  const arbitrageStopSignal = useRef({ stopped: false });
 
-  // Fetch positions periodically
+  // Fetch positions and status periodically
   useEffect(() => {
-    const fetchPositions = async () => {
+    const fetchData = async () => {
       try {
-        const posData = await tradingApi.getPositions();
-        setPositions(posData.positions || {});
+        const [posData, statusData] = await Promise.all([
+          api.getPositions(),
+          api.getBotStatus()
+        ]);
+
+        if (posData.success) {
+          setPositions(posData.positions);
+        }
+
+        if (statusData.success) {
+          setBotStatus(statusData);
+        }
+
         setConnected(true);
       } catch (error) {
-        console.error('Error fetching positions:', error);
+        console.error('Error fetching data:', error);
         setConnected(false);
       }
     };
 
-    fetchPositions();
-    const interval = setInterval(fetchPositions, 1000);
+    fetchData();
+    const interval = setInterval(fetchData, 1000);
     return () => clearInterval(interval);
   }, []);
 
   const handleArbitrageToggle = async () => {
-    if (arbitrageRunning) {
-      // Stop arbitrage
-      arbitrageStopSignal.current.stopped = true;
-      setArbitrageRunning(false);
+    if (botStatus.arbitrage_running) {
+      await api.stopArbitrage();
     } else {
-      // Start arbitrage
-      arbitrageStopSignal.current = { stopped: false };
-      setArbitrageRunning(true);
-
-      tradingApi.runArbitrage(
-        (message) => console.log('[ARBITRAGE]', message),
-        arbitrageStopSignal.current
-      );
+      await api.startArbitrage();
     }
   };
 
@@ -62,8 +65,8 @@ const ControlPanel = () => {
       </header>
 
       <StatusIndicator
-        runningStrategies={runningStrategies}
-        arbitrageRunning={arbitrageRunning}
+        runningStrategies={botStatus.running_strategies}
+        arbitrageRunning={botStatus.arbitrage_running}
         connected={connected}
       />
 
@@ -75,18 +78,36 @@ const ControlPanel = () => {
           <div className="button-grid">
             <StrategyButton
               label="Ultra-Long AAA"
-              onClick={tradingApi.ultraLongAAA}
+              onClick={api.startUltraLongAAA}
               variant="long"
             />
             <StrategyButton
               label="Ultra-Long BBB"
-              onClick={tradingApi.ultraLongBBB}
+              onClick={api.startUltraLongBBB}
               variant="long"
             />
             <StrategyButton
               label="Ultra-Long CCC"
-              onClick={tradingApi.ultraLongCCC}
+              onClick={api.startUltraLongCCC}
               variant="long"
+            />
+          </div>
+
+          <div className="button-grid">
+            <StrategyButton
+              label="Exit Long AAA"
+              onClick={api.exitLongAAA}
+              variant="exit"
+            />
+            <StrategyButton
+              label="Exit Long BBB"
+              onClick={api.exitLongBBB}
+              variant="exit"
+            />
+            <StrategyButton
+              label="Exit Long CCC"
+              onClick={api.exitLongCCC}
+              variant="exit"
             />
           </div>
         </div>
@@ -96,18 +117,36 @@ const ControlPanel = () => {
           <div className="button-grid">
             <StrategyButton
               label="Ultra-Short AAA"
-              onClick={tradingApi.ultraShortAAA}
+              onClick={api.startUltraShortAAA}
               variant="short"
             />
             <StrategyButton
               label="Ultra-Short BBB"
-              onClick={tradingApi.ultraShortBBB}
+              onClick={api.startUltraShortBBB}
               variant="short"
             />
             <StrategyButton
               label="Ultra-Short CCC"
-              onClick={tradingApi.ultraShortCCC}
+              onClick={api.startUltraShortCCC}
               variant="short"
+            />
+          </div>
+
+          <div className="button-grid">
+            <StrategyButton
+              label="Exit Short AAA"
+              onClick={api.exitShortAAA}
+              variant="exit"
+            />
+            <StrategyButton
+              label="Exit Short BBB"
+              onClick={api.exitShortBBB}
+              variant="exit"
+            />
+            <StrategyButton
+              label="Exit Short CCC"
+              onClick={api.exitShortCCC}
+              variant="exit"
             />
           </div>
         </div>
@@ -116,12 +155,12 @@ const ControlPanel = () => {
           <h2>Arbitrage Control</h2>
           <div className="arbitrage-controls">
             <StrategyButton
-              label={arbitrageRunning ? "Stop Arbitrage" : "Start Arbitrage"}
+              label={botStatus.arbitrage_running ? "Stop Arbitrage" : "Start Arbitrage"}
               onClick={handleArbitrageToggle}
               variant="arbitrage"
             />
             <p className="arbitrage-info">
-              {arbitrageRunning
+              {botStatus.arbitrage_running
                 ? "✓ Arbitrage is actively monitoring for opportunities"
                 : "○ Arbitrage is stopped - click to enable"}
             </p>

@@ -28,9 +28,9 @@ from bot import (
 app = Flask(__name__)
 CORS(app)  # Enable CORS for React frontend
 
-# Configuration
-API_URL = os.environ.get("CTC_API_URL", "http://localhost:8000")
-API_KEY = os.environ.get("CTC_API_KEY") or DEFAULT_API_KEY
+# Configuration - Hardcoded for deployment
+API_URL = os.environ.get("CTC_API_URL", "https://cornelltradingcompetition.org")
+API_KEY = os.environ.get("CTC_API_KEY", "xLw2g_6L6hqJ76LrmOfgJo_fKF6uNybtSx2HXHbXpiI")
 
 # Global state for running strategies
 strategy_threads: Dict[str, threading.Thread] = {}
