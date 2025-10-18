@@ -64,8 +64,8 @@ const ControlPanel = () => {
   return (
     <div className="control-panel">
       <header className="panel-header">
-        <h1>CTC Trading Bot Control Panel</h1>
-        <p className="subtitle">Cornell Trading Competition 2025 - Systematic Equities</p>
+        <h1>CTC Control Panel Sys Equities</h1>
+        <p className="subtitle">Team from Harvard - Matthew, Dilzafer, Magnus, Param</p>
       </header>
 
       <StatusIndicator
