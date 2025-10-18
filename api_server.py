@@ -215,13 +215,21 @@ def exit_short_ccc():
 
 @app.route('/api/arbitrage/start', methods=['POST'])
 def start_arbitrage():
-    """Start arbitrage loop."""
+    """Start HIGH-FREQUENCY arbitrage loop."""
     global arbitrage_running, strategy_threads
 
     if arbitrage_running:
         return jsonify({"error": "Arbitrage is already running"}), 400
 
-    interval = request.json.get('interval', 0.1) if request.json else 0.1
+    # Default to 1ms (0.001s) for high-frequency trading
+    # Frontend can override with custom interval
+    interval = request.json.get('interval', 0.001) if request.json else 0.001
+
+    # Validate interval (prevent extreme values that could cause issues)
+    if interval < 0:
+        interval = 0  # 0 = maximum speed
+    elif interval > 10:
+        interval = 10  # Cap at 10 seconds
 
     def arbitrage_wrapper():
         global arbitrage_running
@@ -237,7 +245,11 @@ def start_arbitrage():
     strategy_threads["arbitrage"] = thread
     thread.start()
 
-    return jsonify({"message": "Arbitrage started successfully"}), 200
+    return jsonify({
+        "message": "High-frequency arbitrage started successfully",
+        "interval_ms": interval * 1000,
+        "estimated_checks_per_second": int(1 / interval) if interval > 0 else "unlimited"
+    }), 200
 
 
 @app.route('/api/arbitrage/stop', methods=['POST'])

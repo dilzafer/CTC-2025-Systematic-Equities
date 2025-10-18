@@ -6,6 +6,7 @@ import argparse
 import random
 import threading
 from typing import Any, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 
 
@@ -298,7 +299,8 @@ def execute_arbitrage_trade(
     trade_qty: int
 ) -> bool:
     """
-    Execute a 4-leg arbitrage trade atomically, then immediately net out positions.
+    Execute a 4-leg arbitrage trade atomically with concurrent order placement,
+    then immediately net out positions.
 
     Args:
         api_url: Base API URL
@@ -332,23 +334,28 @@ def execute_arbitrage_trade(
             {"symbol": "CCC", "side": "sell", "order_type": "limit", "quantity": trade_qty, "price": opportunity["ccc_price"]},
         ]
 
-    # Execute all orders
-    success = True
-    for order in orders:
+    # Execute all orders CONCURRENTLY using ThreadPoolExecutor
+    def place_single_order(order):
         try:
             api_post(api_url, "/api/v1/orders", api_key, order)
+            return (True, order)
         except Exception as e:
             print(f"[ARB ERR] Failed to place {order['side']} {order['symbol']}: {e}")
-            success = False
+            return (False, order)
+
+    success = True
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = [executor.submit(place_single_order, order) for order in orders]
+        for future in as_completed(futures):
+            result, order = future.result()
+            if not result:
+                success = False
 
     if success:
         profit = opportunity["spread"] * trade_qty
         print(f"[ARB] {trade_type.upper()} executed: {trade_qty} units, spread={opportunity['spread']:.4f}, profit={profit:.2f}")
 
-        # INSTANT POSITION NETTING
-        # Wait briefly for orders to fill
-        time.sleep(0.2)
-
+        # INSTANT POSITION NETTING - No delay, execute immediately
         if trade_type == "spread1":
             # Spread 1: We now have long AAA+BBB+CCC, short ETF
             # Create ETF from components to net out all positions to 0
@@ -403,26 +410,39 @@ def run_arbitrage_strategy(api_url: str, api_key: str) -> None:
         print(f"[ARB ERR] Arbitrage strategy error: {e}")
 
 
-def arbitrage_loop(api_url: str, api_key: str, interval: float = 0.1) -> None:
+def arbitrage_loop(api_url: str, api_key: str, interval: float = 0.001) -> None:
     """
-    Continuous arbitrage monitoring loop that runs in a separate thread.
+    HIGH-FREQUENCY continuous arbitrage monitoring loop that runs in a separate thread.
 
     Args:
         api_url: Base API URL
         api_key: API key
-        interval: Sleep interval between checks (in seconds)
+        interval: Sleep interval between checks in seconds (default: 0.001 = 1 millisecond)
+                 Set to 0 for maximum speed (no sleep), but may hit API rate limits.
+
+    Performance:
+        - Default 1ms interval: ~1000 checks/second (if each check takes <1ms)
+        - With 0 interval: Limited only by API response time (~10-100 checks/second)
+        - Concurrent order placement reduces execution time by ~75%
     """
-    print("[ARB] Starting arbitrage monitoring loop...")
+    print(f"[ARB] Starting HIGH-FREQUENCY arbitrage monitoring (interval={interval*1000:.2f}ms)...")
+    if interval == 0:
+        print("[ARB] ⚠️  WARNING: Running at MAXIMUM speed (no interval). May hit API rate limits!")
+
     while True:
         try:
             run_arbitrage_strategy(api_url, api_key)
-            time.sleep(interval)
+            if interval > 0:
+                time.sleep(interval)
         except KeyboardInterrupt:
             print("[ARB] Arbitrage loop stopped by user.")
             break
         except Exception as e:
             print(f"[ARB ERR] Loop error: {e}")
-            time.sleep(interval)
+            if interval > 0:
+                time.sleep(interval)
+            else:
+                time.sleep(0.01)  # Prevent error spam in max speed mode
 
 
 # ----------------------------
