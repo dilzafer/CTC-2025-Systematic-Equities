@@ -1,17 +1,13 @@
-# Render.com configuration for Flask backend
 services:
   - type: web
-    name: ctc-trading-backend
+    name: ctc-trading-bot-api
     env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: python api_server.py
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python api_server.py"
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.9.16
-      - key: CTC_API_URL
-        value: https://cornelltradingcompetition.org
-      - key: CTC_API_KEY
-        sync: false  # Set manually in Render dashboard for security
       - key: PORT
-        value: 10000
-    autoDeploy: true
+        value: 5001
+      - key: CTC_API_KEY
+        value: wxJM6xGFnLPodG5jLQUejTxRnL4SZog_3GS2_3h244Q
+      - key: CTC_API_URL
+        value: http://localhost:8000
