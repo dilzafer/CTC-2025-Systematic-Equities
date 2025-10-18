@@ -412,13 +412,17 @@ def run_arbitrage_strategy(api_url: str, api_key: str) -> None:
         # Get current positions
         positions = get_positions(api_url, api_key)
 
-        # Execute Spread 1 if available
+        # Execute Spread 1 if available (PRIORITIZED - typically more profitable)
         if spread1_opp:
             max_qty = check_position_limits(positions, spread1_opp["max_quantity"], "spread1")
             if max_qty > 0:
-                execute_arbitrage_trade(api_url, api_key, spread1_opp, "spread1", max_qty)
+                success = execute_arbitrage_trade(api_url, api_key, spread1_opp, "spread1", max_qty)
+                if success:
+                    # Spread 1 executed, skip Spread 2 this iteration to avoid stale position data
+                    # Next iteration will have fresh positions and can execute Spread 2 if available
+                    return
 
-        # Execute Spread 2 if available
+        # Execute Spread 2 if available (only if Spread 1 didn't execute)
         if spread2_opp:
             max_qty = check_position_limits(positions, spread2_opp["max_quantity"], "spread2")
             if max_qty > 0:
